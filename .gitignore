@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+venv/
+node-v20.11.1-win-x64/
+
+# Builds
+frontend/dist/
+dist/
+
+# Environment and sensitive files
+.env
+
+# Python cache & artifacts
+__pycache__/
+*.pyc
+
+# Archives
+*.zip

@@ -1,0 +1,80 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "quizzes": "Assessments",
+    "pathway": "Course Pathway",
+    "profile": "Profile",
+    "admin": "Admin Panel",
+    "logout": "Logout",
+    "editProfile": "Edit Profile",
+    "live": "Live",
+    "learnerProfile": "Learner Profile & Competency Gap",
+    "selfAssessDesc": "Self-assess across four competency domains",
+    "coursePathway": "Recommended Course Pathway",
+    "curatedBy": "Curated by iGOT Karmayogi & NSSTA",
+    "pdfQuizGen": "Interactive PDF Quiz Generator",
+    "quizGenDesc": "Auto-scored quizzes with instant explanations",
+    "notifications": "Notifications",
+    "markAllRead": "Mark all as read",
+    "noNotifications": "No notifications available."
+  },
+  "dashboard": {
+    "welcome": "Welcome back",
+    "overview": "Your Skill Overview",
+    "activeGaps": "Active Skill Gaps",
+    "avgCompetency": "Average Competency",
+    "criticalGaps": "Critical Gaps",
+    "completedAssessments": "Completed Quizzes",
+    "topCourses": "Top Recommended Courses",
+    "topGaps": "Top Skill Gaps",
+    "recommendedCourses": "Recommended Courses",
+    "recentAssessments": "Recent Assessments",
+    "viewAll": "View all"
+  },
+  "quizzes": {
+    "title": "Available Assessments",
+    "subtitle": "Take quizzes to prove your competency and close skill gaps.",
+    "takeAssessment": "Take Assessment",
+    "startAssessment": "Start Assessment",
+    "passingScore": "to pass",
+    "questions": "Questions"
+  },
+  "quiz_runner": {
+    "skillAssessment": "Skill Assessment",
+    "question": "Question",
+    "of": "of",
+    "completed": "Completed",
+    "previous": "Previous",
+    "next": "Next",
+    "submitAssessment": "Submit Assessment",
+    "timeRemaining": "Time Remaining",
+    "correct": "Correct!",
+    "incorrect": "Incorrect."
+  },
+  "quiz_management": {
+    "title": "Quiz Management",
+    "subtitle": "Upload documents to generate AI assessments"
+  },
+  "pathway": {
+    "title": "Your Learning Pathway",
+    "subtitle": "Recommended courses based on your active skill gaps",
+    "enroll": "Enroll Now",
+    "enrollNow": "Enroll Now",
+    "enrolled": "Enrolled",
+    "closesGap": "Closes Gap in",
+    "level": "Level",
+    "duration": "Duration",
+    "noRecommendations": "You have met all benchmarks! No courses recommended.",
+    "filterPathway": "Filter pathway",
+    "allRoles": "All roles",
+    "allDomains": "All domains",
+    "noCoursesMatch": "No courses match these filters.",
+    "suggestedSequence": "Suggested learning sequence",
+    "personalisedPathway": "Personalised pathway for",
+    "focusFirst": "Courses are ordered by your largest competency gap. Focus first on the highlighted domains to close the gap fastest."
+  },
+  "topbar": {
+    "search": "Search...",
+    "language": "Language"
+  }
+}

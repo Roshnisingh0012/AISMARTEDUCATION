@@ -1,0 +1,281 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_
+from typing import List
+import uuid
+from datetime import datetime, timezone
+
+from db.session import get_db
+from db.models import User, UserRole, Quiz, QuizQuestion, QuizAttempt, UserCompetency, Competency, MockCourse, CourseEnrollment
+from schemas.learner import (
+    QuizAvailable, QuizQuestionPublic, QuizSubmission, QuizResultResponse,
+    QuestionResult, SkillGap, CourseRecommendation, DashboardSummary, RecommendationResponse
+)
+from api.deps import get_current_user, require_role
+from services.gap_engine import analyze_user_gaps
+from services.recommendation_engine import recommend_courses
+from services.role_competency_map import get_relevant_competencies_for_user
+
+router = APIRouter()
+learner_role = require_role(UserRole.LEARNER)
+
+
+async def _get_role_filtered_competency_ids(user: User, db: AsyncSession) -> list:
+    """Return competency IDs relevant to the user's designation. Empty list = no filter."""
+    relevant_names = get_relevant_competencies_for_user(user.designation or "")
+    if not relevant_names:
+        return []
+    result = await db.execute(select(Competency).where(Competency.name.in_(relevant_names)))
+    comps = result.scalars().all()
+    return [c.id for c in comps]
+
+
+@router.get("/assessments/available", response_model=List[QuizAvailable])
+async def get_available_quizzes(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(learner_role)
+):
+    """Return published quizzes filtered by the learner's role/designation and competencies."""
+    comp_ids = await _get_role_filtered_competency_ids(user, db)
+    role_filter = or_(Quiz.target_role == user.designation, Quiz.target_role == 'All Roles', Quiz.target_role.is_(None))
+
+    if comp_ids:
+        # Return quizzes tagged to the user's relevant competencies and role
+        result = await db.execute(
+            select(Quiz).where(
+                Quiz.is_published == True,
+                role_filter,
+                or_(Quiz.competency_id.in_(comp_ids), Quiz.competency_id.is_(None))
+            )
+        )
+    else:
+        # Filter by role only
+        result = await db.execute(select(Quiz).where(
+            Quiz.is_published == True,
+            role_filter
+        ))
+
+    quizzes = result.scalars().all()
+    return quizzes
+
+
+@router.get("/assessments/{quiz_id}", response_model=List[QuizQuestionPublic])
+async def get_quiz_questions(
+    quiz_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(learner_role)
+):
+    result = await db.execute(select(QuizQuestion).where(QuizQuestion.quiz_id == quiz_id))
+    questions = result.scalars().all()
+    if not questions:
+        raise HTTPException(status_code=404, detail="Quiz not found or has no questions.")
+    return questions
+
+
+@router.post("/assessments/{quiz_id}/submit", response_model=QuizResultResponse)
+async def submit_quiz(
+    quiz_id: uuid.UUID,
+    submission: QuizSubmission,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(learner_role)
+):
+    quiz_res = await db.execute(select(Quiz).where(Quiz.id == quiz_id))
+    quiz = quiz_res.scalars().first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found.")
+
+    q_res = await db.execute(select(QuizQuestion).where(QuizQuestion.quiz_id == quiz_id))
+    questions = q_res.scalars().all()
+
+    q_map = {q.id: q for q in questions}
+    correct_count = 0
+    total_count = len(questions)
+
+    if total_count == 0:
+        raise HTTPException(status_code=400, detail="Quiz has no questions.")
+
+    results = []
+
+    for ans in submission.answers:
+        q = q_map.get(ans.question_id)
+        if not q:
+            continue
+
+        is_correct = (ans.selected_option_index == q.correct_option_index)
+        if is_correct:
+            correct_count += 1
+
+        results.append(QuestionResult(
+            question_id=ans.question_id,
+            selected_option_index=ans.selected_option_index,
+            correct_option_index=q.correct_option_index,
+            is_correct=is_correct,
+            explanation=q.explanation,
+            explanation_hi=q.explanation_hi
+        ))
+
+    score_percentage = (correct_count / total_count) * 100.0
+
+    attempt = QuizAttempt(
+        user_id=user.id,
+        quiz_id=quiz_id,
+        score_percentage=score_percentage
+    )
+    db.add(attempt)
+
+    if quiz.competency_id:
+        uc_res = await db.execute(
+            select(UserCompetency)
+            .where(UserCompetency.user_id == user.id)
+            .where(UserCompetency.competency_id == quiz.competency_id)
+        )
+        uc = uc_res.scalars().first()
+        if uc:
+            uc.current_score = (uc.current_score * 0.4) + (score_percentage * 0.6)
+            uc.last_evaluated_at = datetime.now(timezone.utc)
+        else:
+            db.add(UserCompetency(
+                user_id=user.id,
+                competency_id=quiz.competency_id,
+                current_score=score_percentage,
+                last_evaluated_at=datetime.now(timezone.utc)
+            ))
+
+    if quiz.is_diagnostic:
+        user.has_completed_diagnostic = True
+
+    await db.commit()
+
+    return QuizResultResponse(score_percentage=score_percentage, results=results)
+
+
+@router.get("/skill-gaps", response_model=List[SkillGap])
+async def get_skill_gaps(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(learner_role)
+):
+    """Return skill gaps. For role-specific users, prioritise relevant competencies."""
+    comps_res = await db.execute(select(Competency))
+    comps = comps_res.scalars().all()
+
+    ucs_res = await db.execute(select(UserCompetency).where(UserCompetency.user_id == user.id))
+    ucs = ucs_res.scalars().all()
+
+    gaps = analyze_user_gaps(comps, ucs)
+
+    # Boost priority of role-relevant gaps to the top
+    relevant_names = get_relevant_competencies_for_user(user.designation or "")
+    if relevant_names:
+        def sort_key(g):
+            if g["competency_name"] in relevant_names:
+                return (0, -g["gap"])
+            return (1, -g["gap"])
+        gaps = sorted(gaps, key=sort_key)
+
+    return gaps
+
+
+@router.get("/competencies", response_model=List[SkillGap])
+async def get_competencies(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(learner_role)
+):
+    return await get_skill_gaps(db=db, user=user)
+
+
+@router.get("/recommendations", response_model=RecommendationResponse)
+async def get_recommendations(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(learner_role)
+):
+    """Return courses prioritised by the user's role-specific skill gaps."""
+    comps_res = await db.execute(select(Competency))
+    comps = comps_res.scalars().all()
+
+    ucs_res = await db.execute(select(UserCompetency).where(UserCompetency.user_id == user.id))
+    ucs = ucs_res.scalars().all()
+
+    gaps = analyze_user_gaps(comps, ucs)
+
+    # Filter courses
+    relevant_names = get_relevant_competencies_for_user(user.designation or "")
+    comp_ids = await _get_role_filtered_competency_ids(user, db)
+
+    if comp_ids:
+        courses_res = await db.execute(
+            select(MockCourse).where(MockCourse.competency_id.in_(comp_ids))
+        )
+    else:
+        courses_res = await db.execute(select(MockCourse))
+
+    courses = courses_res.scalars().all()
+    recs = recommend_courses(gaps, courses)
+    return {"courses": recs}
+
+
+@router.get("/dashboard-summary", response_model=DashboardSummary)
+async def get_dashboard_summary(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(learner_role)
+):
+    comps_res = await db.execute(select(Competency))
+    comps = comps_res.scalars().all()
+
+    ucs_res = await db.execute(select(UserCompetency).where(UserCompetency.user_id == user.id))
+    ucs = ucs_res.scalars().all()
+
+    gaps = analyze_user_gaps(comps, ucs)
+
+    # Role-specific course recommendations
+    comp_ids = await _get_role_filtered_competency_ids(user, db)
+    if comp_ids:
+        courses_res = await db.execute(
+            select(MockCourse).where(MockCourse.competency_id.in_(comp_ids))
+        )
+    else:
+        courses_res = await db.execute(select(MockCourse))
+    courses = courses_res.scalars().all()
+
+    recs = recommend_courses(gaps, courses)
+
+    attempts_res = await db.execute(select(QuizAttempt).where(QuizAttempt.user_id == user.id))
+    attempts = attempts_res.scalars().all()
+
+    total_gaps = len([g for g in gaps if g["priority"] != "NONE"])
+    high_priority_gaps = len([g for g in gaps if g["priority"] == "HIGH"])
+    avg_comp = sum(uc.current_score for uc in ucs) / len(ucs) if ucs else 0.0
+
+    return DashboardSummary(
+        overall_competency_avg=avg_comp,
+        total_skill_gaps_count=total_gaps,
+        high_priority_gaps_count=high_priority_gaps,
+        completed_assessments_count=len(attempts),
+        recent_recommendations=recs[:5],
+        skill_gaps=gaps
+    )
+
+
+@router.post("/courses/{course_id}/enroll")
+async def enroll_course(
+    course_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(learner_role)
+):
+    course_res = await db.execute(select(MockCourse).where(MockCourse.id == course_id))
+    course = course_res.scalars().first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    enr_res = await db.execute(
+        select(CourseEnrollment)
+        .where(CourseEnrollment.user_id == user.id)
+        .where(CourseEnrollment.course_id == course.id)
+    )
+    existing = enr_res.scalars().first()
+
+    if existing:
+        return {"status": "success", "message": "Already enrolled.", "external_url": course.external_url}
+
+    db.add(CourseEnrollment(user_id=user.id, course_id=course.id, status="IN_PROGRESS"))
+    await db.commit()
+    return {"status": "success", "message": "Successfully enrolled!", "external_url": course.external_url}

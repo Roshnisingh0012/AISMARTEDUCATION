@@ -1,0 +1,80 @@
+{
+  "nav": {
+    "dashboard": "डैशबोर्ड",
+    "quizzes": "मूल्यांकन",
+    "pathway": "पाठ्यक्रम मार्ग",
+    "profile": "प्रोफ़ाइल",
+    "admin": "व्यवस्थापक पैनल",
+    "logout": "साइन आउट",
+    "editProfile": "प्रोफ़ाइल संपादित करें",
+    "live": "सक्रिय",
+    "learnerProfile": "शिक्षार्थी प्रोफ़ाइल और क्षमता अंतराल",
+    "selfAssessDesc": "चार क्षमता क्षेत्रों में स्व-मूल्यांकन करें",
+    "coursePathway": "अनुशंसित पाठ्यक्रम मार्ग",
+    "curatedBy": "iGOT Karmayogi और NSSTA द्वारा क्यूरेट किया गया",
+    "pdfQuizGen": "इंटरैक्टिव पीडीएफ क्विज़ जनरेटर",
+    "quizGenDesc": "त्वरित स्पष्टीकरण के साथ ऑटो-स्कोर्ड क्विज़",
+    "notifications": "सूचनाएं",
+    "markAllRead": "सभी को पढ़ा हुआ चिह्नित करें",
+    "noNotifications": "कोई सूचना उपलब्ध नहीं है।"
+  },
+  "dashboard": {
+    "welcome": "वापसी पर स्वागत है",
+    "overview": "आपका कौशल अवलोकन",
+    "activeGaps": "सक्रिय कौशल अंतराल",
+    "avgCompetency": "औसत क्षमता",
+    "criticalGaps": "गंभीर अंतराल",
+    "completedAssessments": "पूर्ण किए गए क्विज़",
+    "topCourses": "शीर्ष अनुशंसित पाठ्यक्रम",
+    "topGaps": "शीर्ष कौशल अंतराल",
+    "recommendedCourses": "अनुशंसित पाठ्यक्रम",
+    "recentAssessments": "हाल के मूल्यांकन",
+    "viewAll": "सभी देखें"
+  },
+  "quizzes": {
+    "title": "उपलब्ध मूल्यांकन",
+    "subtitle": "अपनी क्षमता साबित करने और कौशल अंतराल को पाटने के लिए क्विज़ लें।",
+    "takeAssessment": "मूल्यांकन लें",
+    "startAssessment": "मूल्यांकन शुरू करें",
+    "passingScore": "उत्तीर्ण होने के लिए",
+    "questions": "प्रश्न"
+  },
+  "quiz_runner": {
+    "skillAssessment": "कौशल मूल्यांकन",
+    "question": "प्रश्न",
+    "of": "का",
+    "completed": "पूर्ण",
+    "previous": "पिछला",
+    "next": "अगला",
+    "submitAssessment": "मूल्यांकन जमा करें",
+    "timeRemaining": "शेष समय",
+    "correct": "सही!",
+    "incorrect": "ग़लत।"
+  },
+  "quiz_management": {
+    "title": "क्विज़ प्रबंधन",
+    "subtitle": "AI मूल्यांकन जनरेट करने के लिए दस्तावेज़ अपलोड करें"
+  },
+  "pathway": {
+    "title": "आपका शिक्षण मार्ग",
+    "subtitle": "आपके सक्रिय कौशल अंतराल के आधार पर अनुशंसित पाठ्यक्रम",
+    "enroll": "नामांकन करें",
+    "enrollNow": "नामांकन करें",
+    "enrolled": "नामांकित",
+    "closesGap": "अंतराल को बंद करता है",
+    "level": "स्तर",
+    "duration": "अवधि",
+    "noRecommendations": "आपने सभी मानक पूरे कर लिए हैं! किसी पाठ्यक्रम की अनुशंसा नहीं की गई है।",
+    "filterPathway": "फ़िल्टर मार्ग",
+    "allRoles": "सभी भूमिकाएं",
+    "allDomains": "सभी डोमेन",
+    "noCoursesMatch": "इन फ़िल्टर से कोई पाठ्यक्रम मेल नहीं खाता।",
+    "suggestedSequence": "सुझाई गई शिक्षण क्रमबद्धता",
+    "personalisedPathway": "के लिए व्यक्तिगत मार्ग",
+    "focusFirst": "पाठ्यक्रमों को आपके सबसे बड़े क्षमता अंतराल के आधार पर क्रमबद्ध किया गया है। अंतराल को सबसे तेज़ी से बंद करने के लिए सबसे पहले हाइलाइट किए गए डोमेन पर ध्यान केंद्रित करें।"
+  },
+  "topbar": {
+    "search": "खोजें...",
+    "language": "भाषा"
+  }
+}
