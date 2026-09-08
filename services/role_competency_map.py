@@ -3,6 +3,32 @@ Comprehensive Role-to-Competency mapping for the AI Skill Intelligence Platform.
 Covers MoSPI / NSSTA / IT / Analytics / Administrative profiles.
 """
 
+CANONICAL_ROLES = [
+    "Senior Statistical Officer",
+    "Field Survey Officer",
+    "Data Engineer",
+    "Data Analyst / Statistical Assistant",
+    "Director / Joint Director"
+]
+
+def normalize_role(role_or_designation: str) -> str:
+    """Normalize user role strings (trim spaces, case-insensitive comparison, keyword parsing)."""
+    if not role_or_designation:
+        return "Senior Statistical Officer"
+    
+    r = role_or_designation.lower().strip()
+    
+    if any(k in r for k in ["director", "joint director", "deputy director", "leadership", "policy", "dg", "advisor"]):
+        return "Director / Joint Director"
+    elif any(k in r for k in ["engineer", "dev", "developer", "full stack", "backend", "frontend", "software", "architect", "database"]):
+        return "Data Engineer"
+    elif any(k in r for k in ["survey", "field", "investigator", "enumerator", "capi", "papi", "sampling officer"]):
+        return "Field Survey Officer"
+    elif any(k in r for k in ["analyst", "assistant", "bi", "visualisation", "visualization", "excel", "data science"]):
+        return "Data Analyst / Statistical Assistant"
+    else:
+        return "Senior Statistical Officer"
+
 # Maps role keywords -> list of competency names in priority order
 ROLE_COMPETENCY_MAP = {
     # ── Statistical / MoSPI roles ───────────────────────────────────────────
@@ -24,6 +50,11 @@ ROLE_COMPETENCY_MAP = {
         "Python for Data Analysis",
         "Data Quality & Metadata Frameworks",
     ],
+    "field survey officer": [
+        "Survey Sampling & Estimation",
+        "Data Quality & Metadata Frameworks",
+        "GIS & Spatial Data Processing",
+    ],
     "field investigator": [
         "Survey Sampling & Estimation",
         "Data Quality & Metadata Frameworks",
@@ -35,6 +66,12 @@ ROLE_COMPETENCY_MAP = {
     ],
 
     # ── IT / Engineering roles ──────────────────────────────────────────────
+    "data engineer": [
+        "Database Engineering (PostgreSQL/SQL)",
+        "Backend API Architecture (FastAPI/Python)",
+        "SQL & Relational Databases",
+        "Python for Data Analysis",
+    ],
     "full stack developer": [
         "Frontend Development (React/TypeScript)",
         "Backend API Architecture (FastAPI/Python)",
@@ -60,6 +97,16 @@ ROLE_COMPETENCY_MAP = {
 
     # ── Analytics / Data Science roles ─────────────────────────────────────
     "data analyst": [
+        "Python for Data Analysis",
+        "SQL & Relational Databases",
+        "Data Quality & Metadata Frameworks",
+    ],
+    "data analyst / statistical assistant": [
+        "Python for Data Analysis",
+        "SQL & Relational Databases",
+        "Data Quality & Metadata Frameworks",
+    ],
+    "statistical assistant": [
         "Python for Data Analysis",
         "SQL & Relational Databases",
         "Data Quality & Metadata Frameworks",
@@ -98,6 +145,11 @@ ROLE_COMPETENCY_MAP = {
     ],
 
     # ── Leadership / Training roles ─────────────────────────────────────────
+    "director / joint director": [
+        "National Accounts & Official Stats",
+        "Data Quality & Metadata Frameworks",
+        "Survey Sampling & Estimation",
+    ],
     "director": [
         "National Accounts & Official Stats",
         "Data Quality & Metadata Frameworks",
@@ -144,6 +196,12 @@ def get_relevant_competencies_for_user(designation: str) -> list:
         if role_key in key or key in role_key:
             if len(role_key) > best_len:
                 best, best_len = comps, len(role_key)
+    
+    if not best:
+        norm = normalize_role(designation)
+        if norm.lower() in ROLE_COMPETENCY_MAP:
+            return ROLE_COMPETENCY_MAP[norm.lower()]
+
     return best
 
 
@@ -156,3 +214,4 @@ def get_domain_for_designation(designation: str) -> str:
         if any(dc in comps for dc in domain_comps):
             return domain
     return "general"
+

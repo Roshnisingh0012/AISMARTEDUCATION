@@ -14,7 +14,7 @@ from schemas.learner import (
 from api.deps import get_current_user, require_role
 from services.gap_engine import analyze_user_gaps
 from services.recommendation_engine import recommend_courses
-from services.role_competency_map import get_relevant_competencies_for_user
+from services.role_competency_map import get_relevant_competencies_for_user, normalize_role
 
 router = APIRouter()
 learner_role = require_role(UserRole.LEARNER)
@@ -31,31 +31,45 @@ async def _get_role_filtered_competency_ids(user: User, db: AsyncSession) -> lis
 
 
 @router.get("/assessments/available", response_model=List[QuizAvailable])
+@router.get("/assessments", response_model=List[QuizAvailable])
 async def get_available_quizzes(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(learner_role)
 ):
-    """Return published quizzes filtered by the learner's role/designation and competencies."""
-    comp_ids = await _get_role_filtered_competency_ids(user, db)
-    role_filter = or_(Quiz.target_role == user.designation, Quiz.target_role == 'All Roles', Quiz.target_role.is_(None))
+    """Return published quizzes strictly filtered by the learner's normalized role/designation and competencies."""
+    user_desig = (user.designation or "").strip()
+    norm_role = normalize_role(user_desig)
 
-    if comp_ids:
-        # Return quizzes tagged to the user's relevant competencies and role
-        result = await db.execute(
-            select(Quiz).where(
-                Quiz.is_published == True,
-                role_filter,
-                or_(Quiz.competency_id.in_(comp_ids), Quiz.competency_id.is_(None))
+    # Allowed role tags
+    allowed_roles = [user_desig, norm_role, "All Roles"]
+    comp_ids = await _get_role_filtered_competency_ids(user, db)
+
+    # 1. Primary Query: Target role match
+    result = await db.execute(
+        select(Quiz).where(
+            Quiz.is_published == True,
+            or_(
+                Quiz.target_role.in_(allowed_roles),
+                Quiz.target_role.is_(None)
             )
         )
-    else:
-        # Filter by role only
-        result = await db.execute(select(Quiz).where(
-            Quiz.is_published == True,
-            role_filter
-        ))
-
+    )
     quizzes = result.scalars().all()
+
+    # 2. If no quizzes matched specific target role, fallback to competency-linked quizzes
+    if not quizzes:
+        if comp_ids:
+            result = await db.execute(
+                select(Quiz).where(
+                    Quiz.is_published == True,
+                    or_(Quiz.competency_id.in_(comp_ids), Quiz.target_role == "All Roles", Quiz.target_role.is_(None))
+                )
+            )
+            quizzes = result.scalars().all()
+        else:
+            result = await db.execute(select(Quiz).where(Quiz.is_published == True))
+            quizzes = result.scalars().all()
+
     return quizzes
 
 
@@ -154,7 +168,12 @@ async def get_skill_gaps(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(learner_role)
 ):
-    """Return skill gaps. For role-specific users, prioritise relevant competencies."""
+    """Return skill gaps. If learner has 0 completed assessments, return empty list."""
+    attempts_res = await db.execute(select(QuizAttempt).where(QuizAttempt.user_id == user.id))
+    attempts = attempts_res.scalars().all()
+    if len(attempts) == 0:
+        return []
+
     comps_res = await db.execute(select(Competency))
     comps = comps_res.scalars().all()
 
@@ -198,7 +217,6 @@ async def get_recommendations(
     gaps = analyze_user_gaps(comps, ucs)
 
     # Filter courses
-    relevant_names = get_relevant_competencies_for_user(user.designation or "")
     comp_ids = await _get_role_filtered_competency_ids(user, db)
 
     if comp_ids:
@@ -218,13 +236,9 @@ async def get_dashboard_summary(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(learner_role)
 ):
-    comps_res = await db.execute(select(Competency))
-    comps = comps_res.scalars().all()
-
-    ucs_res = await db.execute(select(UserCompetency).where(UserCompetency.user_id == user.id))
-    ucs = ucs_res.scalars().all()
-
-    gaps = analyze_user_gaps(comps, ucs)
+    attempts_res = await db.execute(select(QuizAttempt).where(QuizAttempt.user_id == user.id))
+    attempts = attempts_res.scalars().all()
+    completed_count = len(attempts)
 
     # Role-specific course recommendations
     comp_ids = await _get_role_filtered_competency_ids(user, db)
@@ -236,10 +250,26 @@ async def get_dashboard_summary(
         courses_res = await db.execute(select(MockCourse))
     courses = courses_res.scalars().all()
 
-    recs = recommend_courses(gaps, courses)
+    # True Zero-State for Brand New Profiles (0 completed assessments)
+    if completed_count == 0:
+        recs = recommend_courses([], courses)
+        return DashboardSummary(
+            overall_competency_avg=0.0,
+            total_skill_gaps_count=0,
+            high_priority_gaps_count=0,
+            completed_assessments_count=0,
+            recent_recommendations=recs[:5],
+            skill_gaps=[]
+        )
 
-    attempts_res = await db.execute(select(QuizAttempt).where(QuizAttempt.user_id == user.id))
-    attempts = attempts_res.scalars().all()
+    comps_res = await db.execute(select(Competency))
+    comps = comps_res.scalars().all()
+
+    ucs_res = await db.execute(select(UserCompetency).where(UserCompetency.user_id == user.id))
+    ucs = ucs_res.scalars().all()
+
+    gaps = analyze_user_gaps(comps, ucs)
+    recs = recommend_courses(gaps, courses)
 
     total_gaps = len([g for g in gaps if g["priority"] != "NONE"])
     high_priority_gaps = len([g for g in gaps if g["priority"] == "HIGH"])
@@ -249,7 +279,7 @@ async def get_dashboard_summary(
         overall_competency_avg=avg_comp,
         total_skill_gaps_count=total_gaps,
         high_priority_gaps_count=high_priority_gaps,
-        completed_assessments_count=len(attempts),
+        completed_assessments_count=completed_count,
         recent_recommendations=recs[:5],
         skill_gaps=gaps
     )
