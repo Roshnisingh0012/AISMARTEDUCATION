@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import {
-  ExternalLink, Clock, Layers, Filter, GraduationCap, Sparkles,
+  ExternalLink, Clock, Layers, Sparkles,
   ArrowRight, CheckCircle2, Loader2, BookOpen, BookMarked,
 } from 'lucide-react';
 import { COURSES } from '@/lib/courses';
@@ -14,14 +14,17 @@ import type { CourseRecommendation } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { fetchRecommendations } from '@/api/learner';
+import { useTranslation } from 'react-i18next';
 
 const ROLE_BADGE: Record<string, string> = {
   'iGOT Karmayogi': 'bg-brand-50 text-brand-700 border-brand-200',
   NSSTA: 'bg-sky-50 text-sky-700 border-sky-200',
+  'NSSTA TPAC': 'bg-sky-50 text-sky-700 border-sky-200',
 };
 
 const LEVEL_BADGE: Record<string, string> = {
   Foundation: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  Beginner: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   Intermediate: 'bg-amber-50 text-amber-700 border-amber-200',
   Advanced: 'bg-rose-50 text-rose-700 border-rose-200',
 };
@@ -41,11 +44,11 @@ interface EnrollmentRow {
   created_at: string;
 }
 
-import { useTranslation } from 'react-i18next';
-
 export default function PathwayView() {
   const { user } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isHi = i18n?.language?.startsWith('hi') ?? false;
+
   // @ts-ignore
   const role = user?.role || user?.designation || user?.jobRole || 'Senior Statistical Officer';
   const [assessment, setAssessment] = useState<LearnerAssessment | null>(null);
@@ -106,7 +109,6 @@ export default function PathwayView() {
         );
         if (error) throw error;
 
-        // Only after DB save succeeds, update UI and open the external link
         const newRow: EnrollmentRow = {
           id: crypto.randomUUID(),
           course_id: course.course_id,
@@ -121,7 +123,10 @@ export default function PathwayView() {
           window.open(course.external_url, '_blank', 'noopener,noreferrer');
         }
       } catch {
-        // DB save failed ? don't open the link
+        // Fallback open if offline
+        if (course.external_url) {
+          window.open(course.external_url, '_blank', 'noopener,noreferrer');
+        }
       } finally {
         setPendingId(null);
       }
@@ -158,51 +163,53 @@ export default function PathwayView() {
 
   return (
     <div className="space-y-6">
-      {assessment && (
-        <div className="gov-card bg-gradient-to-r from-brand-600 to-brand-700 border-brand-700 p-5 text-white">
-          <div className="flex items-start gap-3">
-            <Sparkles className="mt-0.5 h-5 w-5 shrink-0" />
-            <div>
-              <p className="text-sm font-semibold">
-                {t('pathway.personalisedPathway')} {assessment.name} ({assessment.job_role})
-              </p>
-              <p className="mt-1 text-xs text-brand-100">
-                {t('pathway.focusFirst')}
-              </p>
-            </div>
+      {/* Header Banner */}
+      <div className="gov-card p-6 bg-white border border-gray-100 shadow-sm rounded-2xl">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <BookOpen className="text-blue-600" size={26} />
+              {t('pathway.title')}
+            </h1>
+            <p className="text-gray-500 text-sm mt-1">{t('pathway.subtitle')}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="bg-blue-50 border border-blue-200 text-blue-800 font-bold px-3 py-1.5 rounded-xl text-xs shadow-sm">
+              {t('pathway.targetRole')}: {role}
+            </span>
+            <span className="bg-gray-100 text-gray-700 font-semibold px-3 py-1.5 rounded-xl text-xs">
+              {recommended.length} {t('pathway.courses')}
+            </span>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Enrolled Courses section */}
       {enrolledCourses.length > 0 && (
-        <section className="gov-card p-5">
+        <section className="gov-card p-5 bg-white border border-emerald-100 rounded-2xl shadow-sm">
           <div className="flex items-center gap-2 mb-4">
-            <BookMarked className="h-5 w-5 text-brand-600" />
-            <h3 className="text-sm font-bold text-ink-900">{t('pathway.enrolled')}</h3>
-            <span className="gov-chip bg-emerald-50 text-emerald-700 border border-emerald-200">
-              {enrolledCourses.length} {t('pathway.enrolled')}
+            <BookMarked className="h-5 w-5 text-emerald-600" />
+            <h3 className="text-sm font-bold text-gray-900">{t('pathway.enrolled')}</h3>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+              {enrolledCourses.length}
             </span>
           </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {enrolledCourses.map((course) => (
               <div
                 key={course.id}
-                className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 flex flex-col"
+                className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 flex flex-col"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className={`gov-chip border ${ROLE_BADGE[course.provider]}`}>
+                  <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${ROLE_BADGE[course.provider] || 'bg-gray-100 text-gray-700'}`}>
                     {course.provider}
                   </span>
-                  <span className="gov-chip bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <CheckCircle2 className="h-3 w-3" /> {t('pathway.enrolled')}
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> {t('pathway.enrolled')}
                   </span>
                 </div>
-                <h4 className="text-sm font-bold text-ink-900 leading-snug">{course.title}</h4>
-                <p className="mt-1 text-[11px] text-ink-500">
-                  {t('pathway.enrolled')} {new Date(course.enrolledAt).toLocaleDateString()}
-                </p>
-                <div className="mt-3 flex items-center gap-3 text-[11px] text-ink-500">
+                <h4 className="text-sm font-bold text-gray-900 leading-snug">{course.title}</h4>
+                <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
                   <span className="flex items-center gap-1">
                     <Clock className="h-3.5 w-3.5" /> {course.durationHours}h
                   </span>
@@ -210,121 +217,84 @@ export default function PathwayView() {
                     <Layers className="h-3.5 w-3.5" /> {DOMAIN_LABEL[course.domain]}
                   </span>
                 </div>
-                <a
-                  href={course.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
-                >
-                  {t('pathway.enroll')} <ExternalLink className="h-3.5 w-3.5" />
-                </a>
               </div>
             ))}
           </div>
         </section>
       )}
 
-      {/* Filters */}
-      <div className="gov-card p-4">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl font-bold text-ink-900 tracking-tight flex items-center gap-2">
-            <Layers className="h-5 w-5 text-ink-500" />
-            {t('pathway.suggestedSequence')}
-          </h2>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="gov-chip bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold px-3 py-1.5 shadow-sm text-xs">
-              Target Role: {role}
-            </span>
-            <span className="gov-chip bg-ink-100 text-ink-600">
-              {recommended.length} courses
-            </span>
-          </div>
+      {/* Recommended Courses Grid */}
+      {loading ? (
+        <div className="p-12 text-center text-gray-500">
+          <div className="animate-spin inline-block rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+          <div>{isHi ? 'पाठ्यक्रम लोड हो रहे हैं...' : 'Loading personalized course pathway...'}</div>
         </div>
-      </div>
+      ) : recommended.length === 0 ? (
+        <div className="bg-white p-12 text-center rounded-2xl border border-gray-100 shadow-sm text-gray-500">
+          {isHi ? 'वर्तमान में कोई अनुशंसित पाठ्यक्रम उपलब्ध नहीं है।' : 'No recommended courses currently found.'}
+        </div>
+      ) : (
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {recommended.map((course, idx) => {
+            const isEnrolled = enrolledIds.has(course.course_id);
+            const isPending = pendingId === course.course_id;
+            return (
+              <article
+                key={course.course_id}
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition p-5 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${ROLE_BADGE[course.provider] || 'bg-gray-100 text-gray-700'}`}>
+                      {course.provider}
+                    </span>
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${LEVEL_BADGE[course.level] || 'bg-gray-100 text-gray-700'}`}>
+                      {course.level}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-gray-900 leading-snug">
+                    {course.title}
+                  </h3>
+                  
+                  <div className="mt-3 bg-amber-50/80 text-amber-900 text-xs p-3 rounded-xl font-medium flex items-start gap-2 border border-amber-200/50">
+                    <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+                    <span>{course.reason}</span>
+                  </div>
+                </div>
 
-      {/* Course grid */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {recommended.map((course, idx) => {
-          const isEnrolled = enrolledIds.has(course.course_id);
-          const isPending = pendingId === course.course_id;
-          return (
-            <article
-              key={course.course_id}
-              className="gov-card gov-card-hover p-5 flex flex-col animate-fadeIn"
-              style={{ animationDelay: `${idx * 40}ms` }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span className={`gov-chip border ${ROLE_BADGE[course.provider] || 'bg-gray-50 border-gray-200'}`}>
-                  {course.provider}
-                </span>
-                <span className={`gov-chip border ${LEVEL_BADGE[course.level] || 'bg-gray-50 border-gray-200'}`}>
-                  {course.level}
-                </span>
-              </div>
-              <h3 className="text-sm font-bold text-ink-900 leading-snug">
-                {course.title}
-              </h3>
-              
-              <div className="mt-3 bg-amber-50 text-amber-800 text-[11px] p-2 rounded-md font-semibold flex items-start gap-1.5 border border-amber-200/50 flex-1">
-                <Sparkles className="h-4 w-4 shrink-0 mt-0.5" />
-                {course.reason}
-              </div>
-
-              <div className="mt-3 flex items-center gap-3 text-[11px] text-ink-500">
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" /> {course.duration || 'N/A'}
-                </span>
-                <span className="flex items-center gap-1 line-clamp-1">
-                  <Layers className="h-3.5 w-3.5" /> {course.skill_name}
-                </span>
-              </div>
-              <div className="mt-4 flex items-center justify-between gap-2 border-t border-ink-100 pt-3">
-                <span className="text-[11px] text-ink-400">
-                  Targeted for: {role}
-                </span>
-                <button
-                  onClick={() => enroll(course)}
-                  disabled={isEnrolled || isPending}
-                  className={`inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                    isEnrolled
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
-                  }`}
-                >
-                  {isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : isEnrolled ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : (
-                    <BookOpen className="h-4 w-4" />
-                  )}
-                  {isPending ? 'Enrolling...' : isEnrolled ? t('pathway.enrolled') : t('pathway.enrollNow')}
-                </button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-
-      <div className="gov-card p-5">
-        <h3 className="text-sm font-bold text-ink-900 mb-3">{t('pathway.suggestedSequence')}</h3>
-        <ol className="space-y-2">
-          {recommended.slice(0, 5).map((c, i) => (
-            <li key={c.course_id} className="flex items-center gap-3 text-xs">
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-100 text-brand-700 font-bold">
-                {i + 1}
-              </span>
-              <span className="font-medium text-ink-700">{c.title}</span>
-              <span className="text-ink-400">- {c.provider}</span>
-              {enrolledIds.has(c.course_id) && (
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-              )}
-              <ArrowRight className="ml-auto h-3.5 w-3.5 text-ink-300" />
-            </li>
-          ))}
-        </ol>
-      </div>
+                <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-xs text-gray-500 font-medium flex items-center gap-1">
+                    <Clock size={14} /> {course.duration || '4-6 Hours'}
+                  </span>
+                  <button
+                    onClick={() => enroll(course)}
+                    disabled={isEnrolled || isPending}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                      isEnrolled
+                        ? 'bg-emerald-100 text-emerald-800 cursor-default'
+                        : 'bg-brand-600 hover:bg-brand-700 text-white shadow-sm'
+                    }`}
+                  >
+                    {isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : isEnrolled ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                        {t('pathway.enrolled')}
+                      </>
+                    ) : (
+                      <>
+                        {t('pathway.enrollNow')}
+                        <ArrowRight size={14} />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
