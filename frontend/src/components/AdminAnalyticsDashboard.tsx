@@ -95,6 +95,7 @@ export const AdminAnalyticsDashboard: React.FC = () => {
   const [overview, setOverview] = useState<any>(null);
   const [departments, setDepartments] = useState<any[]>([]);
   const [demand, setDemand] = useState<any[]>([]);
+  const [officers, setOfficers] = useState<OfficerData[]>(SAMPLE_OFFICERS);
   const [loading, setLoading] = useState(true);
   
   // Interactive Drilldown Modal State
@@ -108,14 +109,18 @@ export const AdminAnalyticsDashboard: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [oRes, dRes, sRes] = await Promise.all([
+        const [oRes, dRes, sRes, offRes] = await Promise.allSettled([
           axios.get(`${API_BASE}/overview`, getHeaders()),
           axios.get(`${API_BASE}/department-breakdown`, getHeaders()),
-          axios.get(`${API_BASE}/skill-demand`, getHeaders())
+          axios.get(`${API_BASE}/skill-demand`, getHeaders()),
+          axios.get(`${API_BASE}/officers`, getHeaders())
         ]);
-        setOverview(oRes.data);
-        setDepartments(dRes.data);
-        setDemand(sRes.data);
+        if (oRes.status === 'fulfilled') setOverview(oRes.value.data);
+        if (dRes.status === 'fulfilled') setDepartments(dRes.value.data);
+        if (sRes.status === 'fulfilled') setDemand(sRes.value.data);
+        if (offRes.status === 'fulfilled' && Array.isArray(offRes.value.data) && offRes.value.data.length > 0) {
+          setOfficers(offRes.value.data);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -126,7 +131,7 @@ export const AdminAnalyticsDashboard: React.FC = () => {
   }, []);
 
   const handleExport = () => {
-    const dataStr = JSON.stringify({ overview, departments, demand, personnel: SAMPLE_OFFICERS }, null, 2);
+    const dataStr = JSON.stringify({ overview, departments, demand, personnel: officers }, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -135,7 +140,7 @@ export const AdminAnalyticsDashboard: React.FC = () => {
     link.click();
   };
 
-  const filteredOfficers = SAMPLE_OFFICERS.filter((officer) => {
+  const filteredOfficers = officers.filter((officer) => {
     const matchesFilter = filterBand === 'all' || officer.band === filterBand;
     const matchesSearch = officer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           officer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||

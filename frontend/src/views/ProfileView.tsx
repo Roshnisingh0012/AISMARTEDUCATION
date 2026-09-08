@@ -240,108 +240,122 @@ export default function ProfileView() {
 
       {/* Radar + gap analysis column */}
       <div className="space-y-5">
-        <section className="gov-card p-5">
-          <div className="flex flex-wrap items-end justify-between gap-3 mb-2">
-            <div>
-              <h3 className="text-sm font-bold text-ink-900">Competency Radar</h3>
-              <p className="text-xs text-ink-500">Your self-rated level vs. the {roleMeta.label} target across four domains.</p>
+        {avgSelf === 0 ? (
+          <div className="rounded-2xl border-2 border-dashed border-ink-200 bg-white p-12 text-center flex flex-col items-center justify-center animate-fadeIn shadow-sm">
+            <div className="h-16 w-16 rounded-2xl bg-brand-50 flex items-center justify-center text-brand-600 mb-4 ring-8 ring-brand-50/50">
+              <Target className="h-8 w-8" />
             </div>
-            <div className="flex gap-2">
-              <div className="rounded-lg bg-ink-50 px-3 py-1.5 text-center">
-                <p className="text-[10px] uppercase tracking-wide text-ink-400">Avg level</p>
-                <p className="text-lg font-bold text-ink-800">{avgSelf}</p>
-              </div>
-              <div className="rounded-lg bg-brand-50 px-3 py-1.5 text-center">
-                <p className="text-[10px] uppercase tracking-wide text-brand-500">Total gap</p>
-                <p className="text-lg font-bold text-brand-700">{totalGap}</p>
-              </div>
-            </div>
+            <h3 className="text-base font-bold text-ink-900">Take your first role assessment to map your competency profile.</h3>
+            <p className="text-xs text-ink-500 max-w-md mt-2 leading-relaxed">
+              Complete the self-assessment sliders or take your role diagnostic assessment to calibrate baseline proficiency and calculate active skill gaps.
+            </p>
           </div>
-          <CompetencyRadar self={ratings} target={target} />
-        </section>
+        ) : (
+          <>
+            <section className="gov-card p-5">
+              <div className="flex flex-wrap items-end justify-between gap-3 mb-2">
+                <div>
+                  <h3 className="text-sm font-bold text-ink-900">Competency Radar</h3>
+                  <p className="text-xs text-ink-500">Your self-rated level vs. the {roleMeta.label} target across four domains.</p>
+                </div>
+                <div className="flex gap-2">
+                  <div className="rounded-lg bg-ink-50 px-3 py-1.5 text-center">
+                    <p className="text-[10px] uppercase tracking-wide text-ink-400">Avg level</p>
+                    <p className="text-lg font-bold text-ink-800">{avgSelf}</p>
+                  </div>
+                  <div className="rounded-lg bg-brand-50 px-3 py-1.5 text-center">
+                    <p className="text-[10px] uppercase tracking-wide text-brand-500">Total gap</p>
+                    <p className="text-lg font-bold text-brand-700">{totalGap}</p>
+                  </div>
+                </div>
+              </div>
+              <CompetencyRadar self={ratings} target={target} />
+            </section>
 
-        {/* Dynamic Skill Gap Matrix */}
-        <section className="gov-card p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <Target className="h-5 w-5 text-brand-600" />
-            <h3 className="text-sm font-bold text-ink-900">Skill Gap Matrix for {roleMeta.label}</h3>
-          </div>
-          <p className="text-xs text-ink-500 mb-4">
-            Each target skill is mapped to a competency domain. The gap column shows how far your self-rating in that domain is from the role target.
-          </p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-ink-200 text-ink-500">
-                  <th className="py-2 pr-4 font-semibold">Skill</th>
-                  <th className="py-2 pr-4 font-semibold">Domain</th>
-                  <th className="py-2 pr-4 font-semibold">Your level</th>
-                  <th className="py-2 pr-4 font-semibold">Target</th>
-                  <th className="py-2 pr-4 font-semibold">Gap</th>
-                </tr>
-              </thead>
-              <tbody>
-                {skillMatrix.map((row) => {
-                  const selfVal = ratings[row.domainKey];
-                  const targetVal = target[row.domainKey];
-                  const gap = row.gap;
+            {/* Dynamic Skill Gap Matrix */}
+            <section className="gov-card p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <Target className="h-5 w-5 text-brand-600" />
+                <h3 className="text-sm font-bold text-ink-900">Skill Gap Matrix for {roleMeta.label}</h3>
+              </div>
+              <p className="text-xs text-ink-500 mb-4">
+                Each target skill is mapped to a competency domain. The gap column shows how far your self-rating in that domain is from the role target.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-ink-200 text-ink-500">
+                      <th className="py-2 pr-4 font-semibold">Skill</th>
+                      <th className="py-2 pr-4 font-semibold">Domain</th>
+                      <th className="py-2 pr-4 font-semibold">Your level</th>
+                      <th className="py-2 pr-4 font-semibold">Target</th>
+                      <th className="py-2 pr-4 font-semibold">Gap</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {skillMatrix.map((row) => {
+                      const selfVal = ratings[row.domainKey];
+                      const targetVal = target[row.domainKey];
+                      const gap = row.gap;
+                      const meets = gap <= 0;
+                      return (
+                        <tr key={row.skill} className="border-b border-ink-100 last:border-0">
+                          <td className="py-2 pr-4 font-medium text-ink-800">{row.skill}</td>
+                          <td className="py-2 pr-4 text-ink-500">{row.domainLabel}</td>
+                          <td className="py-2 pr-4">{selfVal}</td>
+                          <td className="py-2 pr-4">{targetVal}</td>
+                          <td className="py-2 pr-4">
+                            <span className={`gov-chip ${meets ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                              {meets ? 'On target' : `${gap}`}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="gov-card p-5">
+              <h3 className="text-sm font-bold text-ink-900 mb-1">Domain Gap Analysis</h3>
+              <p className="text-xs text-ink-500 mb-4">Positive gaps indicate areas to develop; zero or negative means you meet or exceed the target.</p>
+              <div className="space-y-3">
+                {DOMAINS.map((d) => {
+                  const gap = gaps[d.key] ?? 0;
+                  const pct = Math.min(100, (gap / 100) * 100);
                   const meets = gap <= 0;
                   return (
-                    <tr key={row.skill} className="border-b border-ink-100 last:border-0">
-                      <td className="py-2 pr-4 font-medium text-ink-800">{row.skill}</td>
-                      <td className="py-2 pr-4 text-ink-500">{row.domainLabel}</td>
-                      <td className="py-2 pr-4">{selfVal}</td>
-                      <td className="py-2 pr-4">{targetVal}</td>
-                      <td className="py-2 pr-4">
-                        <span className={`gov-chip ${meets ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                          {meets ? 'On target' : `${gap}`}
+                    <div key={d.key}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-semibold text-ink-700">{d.label}</span>
+                        <span className={meets ? 'text-emerald-600 font-semibold' : 'text-amber-600 font-semibold'}>
+                          {meets ? 'On target' : `${gap} pts to close`}
                         </span>
-                      </td>
-                    </tr>
+                      </div>
+                      <div className="h-2.5 w-full rounded-full bg-ink-100 overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-500 ${meets ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-400 to-brand-500'}`} style={{ width: `${meets ? 100 : Math.max(4, pct)}%` }} />
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="gov-card p-5">
-          <h3 className="text-sm font-bold text-ink-900 mb-1">Domain Gap Analysis</h3>
-          <p className="text-xs text-ink-500 mb-4">Positive gaps indicate areas to develop; zero or negative means you meet or exceed the target.</p>
-          <div className="space-y-3">
-            {DOMAINS.map((d) => {
-              const gap = gaps[d.key] ?? 0;
-              const pct = Math.min(100, (gap / 100) * 100);
-              const meets = gap <= 0;
-              return (
-                <div key={d.key}>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-semibold text-ink-700">{d.label}</span>
-                    <span className={meets ? 'text-emerald-600 font-semibold' : 'text-amber-600 font-semibold'}>
-                      {meets ? 'On target' : `${gap} pts to close`}
-                    </span>
-                  </div>
-                  <div className="h-2.5 w-full rounded-full bg-ink-100 overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-500 ${meets ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-400 to-brand-500'}`} style={{ width: `${meets ? 100 : Math.max(4, pct)}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            {DOMAIN_KEYS.map((k) => {
-              const gap = gaps[k] ?? 0;
-              const Icon = gap <= 0 ? TrendingUp : TrendingDown;
-              return (
-                <div key={k} className={`rounded-lg border p-3 ${gap <= 0 ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
-                  <Icon className={`h-4 w-4 ${gap <= 0 ? 'text-emerald-600' : 'text-amber-600'}`} />
-                  <p className="mt-1 text-xs font-semibold text-ink-700">{DOMAINS.find((d) => d.key === k)?.label}</p>
-                  <p className="text-[11px] text-ink-500">Self {ratings[k]} · Target {target[k]}</p>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                {DOMAIN_KEYS.map((k) => {
+                  const gap = gaps[k] ?? 0;
+                  const Icon = gap <= 0 ? TrendingUp : TrendingDown;
+                  return (
+                    <div key={k} className={`rounded-lg border p-3 ${gap <= 0 ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                      <Icon className={`h-4 w-4 ${gap <= 0 ? 'text-emerald-600' : 'text-amber-600'}`} />
+                      <p className="mt-1 text-xs font-semibold text-ink-700">{DOMAINS.find((d) => d.key === k)?.label}</p>
+                      <p className="text-[11px] text-ink-500">Self {ratings[k]} · Target {target[k]}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </div>
     </div>

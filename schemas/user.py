@@ -5,7 +5,7 @@ from datetime import datetime
 from db.models import UserRole
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email: str
     full_name: Optional[str] = None
     department: Optional[str] = None
     designation: Optional[str] = None

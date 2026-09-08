@@ -1,9 +1,15 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from db.models import User, UserCompetency, Competency, QuizAttempt, Quiz
+from db.models import User, UserRole, UserCompetency, Competency, QuizAttempt, Quiz
 
 async def get_overview_metrics(db: AsyncSession):
-    learners_res = await db.execute(select(func.count(User.id)).where(User.role == 'LEARNER'))
+    learners_res = await db.execute(
+        select(func.count(User.id)).where(
+            User.role != UserRole.ADMIN,
+            User.role != 'ADMIN',
+            User.role != 'Admin'
+        )
+    )
     total_learners = learners_res.scalar() or 0
 
     quizzes_res = await db.execute(select(func.count(Quiz.id)).where(Quiz.is_published == True))
@@ -18,6 +24,54 @@ async def get_overview_metrics(db: AsyncSession):
         "average_org_competency": float(avg_competency),
         "total_unresolved_gaps": 0 
     }
+
+async def get_all_officers(db: AsyncSession):
+    stmt = select(User).where(
+        User.role != UserRole.ADMIN,
+        User.role != 'ADMIN',
+        User.role != 'Admin'
+    ).order_by(User.created_at.desc())
+    res = await db.execute(stmt)
+    users = res.scalars().all()
+    
+    officers = []
+    for u in users:
+        uc_res = await db.execute(
+            select(UserCompetency, Competency)
+            .join(Competency, Competency.id == UserCompetency.competency_id)
+            .where(UserCompetency.user_id == u.id)
+        )
+        uc_rows = uc_res.all()
+        
+        if uc_rows:
+            avg_s = sum(row[0].current_score for row in uc_rows) / len(uc_rows)
+            dom_scores = " | ".join(f"{row[1].name}: {row[0].current_score:.1f}%" for row in uc_rows[:2])
+        else:
+            avg_s = 0.0
+            dom_scores = "No assessments completed yet"
+
+        if avg_s < 50.0:
+            band = 'critical'
+            action = f"Mandatory enrollment in {u.designation or 'Statistical'} foundational modules"
+        elif avg_s <= 75.0:
+            band = 'moderate'
+            action = f"Targeted intermediate assessment in {u.designation or 'Core competencies'}"
+        else:
+            band = 'proficient'
+            action = "Approve for advanced technical workshops and peer mentoring"
+
+        officers.append({
+            "id": str(u.id),
+            "name": u.full_name or u.email.split('@')[0],
+            "email": u.email,
+            "role": u.designation or "Senior Statistical Officer",
+            "department": u.department or "MoSPI",
+            "score": round(avg_s, 1),
+            "band": band,
+            "domainScore": dom_scores,
+            "recommendedAction": action
+        })
+    return officers
 
 async def get_department_breakdown(db: AsyncSession):
     stmt = select(

@@ -33,7 +33,7 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
         full_name=user_in.full_name or email_clean.split('@')[0],
         role=assigned_role,
         department=user_in.department or "MoSPI",
-        designation=user_in.designation or "SSO",
+        designation=user_in.designation or "Senior Statistical Officer",
     )
     db.add(user)
     await db.commit()
@@ -56,7 +56,8 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
 async def login(
     db: AsyncSession = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
 ):
-    result = await db.execute(select(User).where(User.email == form_data.username))
+    email_clean = form_data.username.strip().lower()
+    result = await db.execute(select(User).where(User.email == email_clean))
     user = result.scalars().first()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")

@@ -285,7 +285,7 @@ export default function LoginView() {
                         className="gov-input pl-9"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="name@mospi.gov.in"
+                        placeholder="name@example.com"
                         autoFocus
                       />
                     </div>
@@ -326,7 +326,7 @@ export default function LoginView() {
               <p className="mt-1 text-sm text-ink-500">
                 {mode === 'signin'
                   ? 'Sign in with your registered email and password.'
-                  : 'Register with your government email and password.'}
+                  : 'Register with your email and password.'}
               </p>
 
               {/* Sign In form */}
@@ -341,7 +341,7 @@ export default function LoginView() {
                         className="gov-input pl-9"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="name@mospi.gov.in"
+                        placeholder="name@example.com"
                         autoFocus
                       />
                     </div>
@@ -408,7 +408,7 @@ export default function LoginView() {
                         className="gov-input pl-9"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="name@mospi.gov.in"
+                        placeholder="name@example.com"
                       />
                     </div>
                   </div>
