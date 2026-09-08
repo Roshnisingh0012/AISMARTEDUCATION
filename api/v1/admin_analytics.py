@@ -18,19 +18,27 @@ async def overview(db: AsyncSession = Depends(get_db), user: User = Depends(admi
 @router.get("/officers")
 @router.get("/learners")
 async def get_all_learners(db: AsyncSession = Depends(get_db), user: User = Depends(admin_role)):
-    result = await db.execute(select(User).where(User.role != UserRole.ADMIN))
-    learners = result.scalars().all()
+    result = await db.execute(select(User).where(User.role != UserRole.ADMIN if hasattr(UserRole, 'ADMIN') else True))
+    users = result.scalars().all()
     return [
         {
-            "id": l.id,
-            "full_name": l.full_name,
-            "email": l.email,
-            "department": l.department or "MoSPI",
-            "job_role": getattr(l, 'designation', None) or getattr(l, 'role', 'Learner'),
-            "avg_score": 0.0,
-            "critical_gaps": 0
+            "id": str(u.id),
+            "name": u.full_name or u.email.split('@')[0],
+            "full_name": u.full_name or u.email.split('@')[0],
+            "email": u.email,
+            "role": getattr(u, 'designation', None) or getattr(u, 'job_role', None) or "Senior Statistical Officer",
+            "cadre": getattr(u, 'designation', None) or getattr(u, 'job_role', None) or "Statistical Officer",
+            "department": u.department or "MoSPI",
+            "band": "critical",
+            "competency_band": "Not Assessed",
+            "score": 0.0,
+            "current_score": 0.0,
+            "domainScore": "Assessment pending",
+            "recommendedAction": "Complete Baseline Assessment",
+            "recommended_action": "Complete Baseline Assessment"
         }
-        for l in learners
+        for u in users
+        if getattr(u, 'email', '') != 'admin@gov.in'
     ]
 
 @router.get("/role-metrics")

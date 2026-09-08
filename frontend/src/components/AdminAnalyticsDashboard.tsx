@@ -12,14 +12,21 @@ const getHeaders = () => ({ headers: { Authorization: `Bearer ${localStorage.get
 
 interface OfficerData {
   id: string;
-  name: string;
+  name?: string;
+  full_name?: string;
   email: string;
-  role: string;
+  role?: string;
+  cadre?: string;
+  job_role?: string;
   department: string;
-  score: number;
-  band: 'critical' | 'moderate' | 'proficient';
-  domainScore: string;
-  recommendedAction: string;
+  score?: number;
+  current_score?: number;
+  avg_score?: number;
+  band?: string;
+  competency_band?: string;
+  domainScore?: string;
+  recommendedAction?: string;
+  recommended_action?: string;
 }
 
 const SAMPLE_OFFICERS: OfficerData[] = [
@@ -118,8 +125,10 @@ export const AdminAnalyticsDashboard: React.FC = () => {
         if (oRes.status === 'fulfilled') setOverview(oRes.value.data);
         if (dRes.status === 'fulfilled') setDepartments(dRes.value.data);
         if (sRes.status === 'fulfilled') setDemand(sRes.value.data);
-        if (offRes.status === 'fulfilled' && Array.isArray(offRes.value.data) && offRes.value.data.length > 0) {
-          setOfficers(offRes.value.data);
+        if (offRes.status === 'fulfilled' && Array.isArray(offRes.value.data)) {
+          if (offRes.value.data.length > 0) {
+            setOfficers(offRes.value.data);
+          }
         }
       } catch (e) {
         console.error(e);
@@ -141,10 +150,17 @@ export const AdminAnalyticsDashboard: React.FC = () => {
   };
 
   const filteredOfficers = officers.filter((officer) => {
-    const matchesFilter = filterBand === 'all' || officer.band === filterBand;
-    const matchesSearch = officer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          officer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          officer.role.toLowerCase().includes(searchTerm.toLowerCase());
+    const officerBand = officer.band || officer.competency_band || 'critical';
+    const matchesFilter = filterBand === 'all' || 
+                          officerBand.toLowerCase() === filterBand.toLowerCase() ||
+                          (filterBand === 'critical' && officerBand === 'Not Assessed');
+
+    const nameStr = (officer.name || officer.full_name || '').toLowerCase();
+    const emailStr = (officer.email || '').toLowerCase();
+    const roleStr = (officer.role || officer.cadre || officer.job_role || '').toLowerCase();
+    const search = searchTerm.toLowerCase();
+    const matchesSearch = !search || nameStr.includes(search) || emailStr.includes(search) || roleStr.includes(search);
+    
     return matchesFilter && matchesSearch;
   });
 
@@ -178,68 +194,82 @@ export const AdminAnalyticsDashboard: React.FC = () => {
           onClick={() => { setDrilldownType('learners'); setFilterBand('all'); }}
           className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col cursor-pointer hover:shadow-md hover:border-blue-300 transition group relative overflow-hidden"
         >
-          <div className="flex justify-between items-start">
-            <span className="text-sm font-semibold text-gray-500 uppercase flex items-center">
-              <Users size={18} className="mr-2 text-blue-600" /> {t('admin.totalLearners')}
-            </span>
-            <ArrowUpRight size={18} className="text-gray-400 group-hover:text-blue-600 transition" />
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('admin.totalLearners')}</p>
+              <h3 className="text-3xl font-black text-gray-900 mt-2">{overview.total_learners}</h3>
+            </div>
+            <div className="p-3.5 bg-blue-50 text-blue-600 rounded-2xl group-hover:scale-110 transition">
+              <Users size={26} />
+            </div>
           </div>
-          <span className="text-4xl font-black text-gray-900 mt-3">{overview.total_learners}</span>
-          <span className="text-xs text-blue-600 font-semibold mt-2 flex items-center">
-            {isHi ? '👆 विस्तृत अधिकारी सूची देखने हेतु क्लिक करें' : '👆 Click to drill down into officer roster'}
-          </span>
+          <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between text-xs text-blue-600 font-semibold">
+            <span>{isHi ? 'कार्मिक सूची देखें' : 'View Personnel Roster'}</span>
+            <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+          </div>
         </div>
 
-        {/* Card 2: Avg Competency */}
-        <div 
-          onClick={() => { setDrilldownType('competency'); setFilterBand('critical'); }}
-          className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col cursor-pointer hover:shadow-md hover:border-green-300 transition group relative overflow-hidden"
-        >
-          <div className="flex justify-between items-start">
-            <span className="text-sm font-semibold text-gray-500 uppercase flex items-center">
-              <TrendingUp size={18} className="mr-2 text-green-600" /> {t('admin.avgCompetency')}
-            </span>
-            <ArrowUpRight size={18} className="text-gray-400 group-hover:text-green-600 transition" />
-          </div>
-          <span className="text-4xl font-black text-blue-600 mt-3">{overview.average_org_competency.toFixed(1)}%</span>
-          <span className="text-xs text-green-600 font-semibold mt-2 flex items-center">
-            {isHi ? '👆 कौशल बैंड एवं जोखिम वितरण देखें' : '👆 Click to inspect competency bands'}
-          </span>
-        </div>
-
-        {/* Card 3: Active Assessments */}
+        {/* Card 2: Active Assessments */}
         <div 
           onClick={() => { setDrilldownType('assessments'); setFilterBand('all'); }}
           className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col cursor-pointer hover:shadow-md hover:border-indigo-300 transition group relative overflow-hidden"
         >
-          <div className="flex justify-between items-start">
-            <span className="text-sm font-semibold text-gray-500 uppercase flex items-center">
-              <BookOpen size={18} className="mr-2 text-indigo-600" /> {t('admin.activeAssessments')}
-            </span>
-            <ArrowUpRight size={18} className="text-gray-400 group-hover:text-indigo-600 transition" />
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('admin.activeAssessments')}</p>
+              <h3 className="text-3xl font-black text-gray-900 mt-2">{overview.active_assessments}</h3>
+            </div>
+            <div className="p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl group-hover:scale-110 transition">
+              <BookOpen size={26} />
+            </div>
           </div>
-          <span className="text-4xl font-black text-indigo-600 mt-3">{overview.active_assessments}</span>
-          <span className="text-xs text-indigo-600 font-semibold mt-2 flex items-center">
-            {isHi ? '👆 मूल्यांकन स्थिति एवं परिणाम देखें' : '👆 Click to inspect assessment logs'}
-          </span>
+          <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between text-xs text-indigo-600 font-semibold">
+            <span>{isHi ? 'मूल्यांकन बैंक प्रबंधित करें' : 'Manage Assessment Banks'}</span>
+            <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+          </div>
+        </div>
+
+        {/* Card 3: Org Competency */}
+        <div 
+          onClick={() => { setDrilldownType('competency'); setFilterBand('all'); }}
+          className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col cursor-pointer hover:shadow-md hover:border-emerald-300 transition group relative overflow-hidden"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('admin.avgCompetency')}</p>
+              <h3 className="text-3xl font-black text-gray-900 mt-2">
+                {overview.average_org_competency?.toFixed(1) || 0.0}%
+              </h3>
+            </div>
+            <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:scale-110 transition">
+              <TrendingUp size={26} />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between text-xs text-emerald-600 font-semibold">
+            <span>{isHi ? 'कौशल बेंचमार्क विश्लेषण' : 'View Skill Deficit Breakdown'}</span>
+            <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+          </div>
         </div>
       </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* Analytics Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Department Breakdown Bar Chart */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center">
-            <ShieldCheck className="text-blue-600 mr-2" size={20} /> {t('admin.deptBreakdown')}
+            <ShieldCheck className="text-blue-600 mr-2" size={20} /> {t('admin.deptCompetency')}
           </h3>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={departments} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="department" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
-                <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
-                <Tooltip cursor={{ fill: '#f3f4f6' }} />
-                <Bar dataKey="avg_score" fill="#3b82f6" radius={[6, 6, 0, 0]} name={isHi ? 'औसत स्कोर (%)' : 'Avg Score (%)'} />
+              <BarChart data={departments} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6" />
+                <XAxis type="number" domain={[0, 100]} tick={{ fill: '#6b7280', fontSize: 12 }} />
+                <YAxis dataKey="department" type="category" tick={{ fill: '#4b5563', fontSize: 11 }} width={120} />
+                <Tooltip 
+                  formatter={(val: number) => [`${val.toFixed(1)}%`, isHi ? 'औसत स्कोर' : 'Avg Score']} 
+                  contentStyle={{ backgroundColor: '#1f2937', color: '#fff', borderRadius: '12px', border: 'none' }} 
+                />
+                <Bar dataKey="avg_score" fill="#3b82f6" radius={[0, 8, 8, 0]} barSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -343,44 +373,55 @@ export const AdminAnalyticsDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-xs">
-                  {filteredOfficers.map((officer) => (
-                    <tr key={officer.id} className="hover:bg-gray-50/80 transition">
-                      <td className="py-3 pl-2">
-                        <div className="font-bold text-gray-900">{officer.name}</div>
-                        <div className="text-[11px] text-gray-500">{officer.email}</div>
-                      </td>
-                      <td className="py-3">
-                        <div className="font-medium text-gray-800">{officer.role}</div>
-                        <div className="text-[11px] text-gray-500">{officer.department}</div>
-                      </td>
-                      <td className="py-3">
-                        {officer.band === 'critical' && (
-                          <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-700 font-bold">
-                            🔴 {isHi ? 'गंभीर (<50%)' : 'Critical (<50%)'}
+                  {filteredOfficers.map((officer) => {
+                    const displayName = officer.name || officer.full_name || officer.email.split('@')[0];
+                    const displayRole = officer.role || officer.cadre || officer.job_role || 'Statistical Officer';
+                    const displayScore = (officer.score ?? officer.current_score ?? officer.avg_score ?? 0);
+                    const displayBand = officer.band || officer.competency_band || 'critical';
+                    const displayAction = officer.recommendedAction || officer.recommended_action || 'Complete Baseline Assessment';
+                    const displayDomain = officer.domainScore || 'Assessment pending';
+
+                    return (
+                      <tr key={officer.id} className="hover:bg-gray-50/80 transition">
+                        <td className="py-3 pl-2">
+                          <div className="font-bold text-gray-900">{displayName}</div>
+                          <div className="text-[11px] text-gray-500">{officer.email}</div>
+                        </td>
+                        <td className="py-3">
+                          <div className="font-medium text-gray-800">{displayRole}</div>
+                          <div className="text-[11px] text-gray-500">{officer.department}</div>
+                        </td>
+                        <td className="py-3">
+                          {displayBand === 'critical' ? (
+                            <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-700 font-bold">
+                              🔴 {isHi ? 'गंभीर (<50%)' : 'Critical (<50%)'}
+                            </span>
+                          ) : displayBand === 'moderate' ? (
+                            <span className="px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800 font-bold">
+                              🟡 {isHi ? 'मध्यम (50-75%)' : 'Moderate (50-75%)'}
+                            </span>
+                          ) : displayBand === 'proficient' ? (
+                            <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-700 font-bold">
+                              🟢 {isHi ? 'कुशल (>75%)' : 'Proficient (>75%)'}
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 font-bold">
+                              ⚪ {isHi ? 'अमूल्यांकित' : 'Not Assessed'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3">
+                          <span className="font-black text-sm text-gray-900">{displayScore.toFixed(1)}%</span>
+                          <div className="text-[10px] text-gray-500 mt-0.5">{displayDomain}</div>
+                        </td>
+                        <td className="py-3 pr-2">
+                          <span className="text-gray-700 bg-blue-50/70 border border-blue-100 rounded-lg px-2.5 py-1 inline-block">
+                            {displayAction}
                           </span>
-                        )}
-                        {officer.band === 'moderate' && (
-                          <span className="px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800 font-bold">
-                            🟡 {isHi ? 'मध्यम (50-75%)' : 'Moderate (50-75%)'}
-                          </span>
-                        )}
-                        {officer.band === 'proficient' && (
-                          <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-700 font-bold">
-                            🟢 {isHi ? 'कुशल (>75%)' : 'Proficient (>75%)'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3">
-                        <span className="font-black text-sm text-gray-900">{officer.score.toFixed(1)}%</span>
-                        <div className="text-[10px] text-gray-500 mt-0.5">{officer.domainScore}</div>
-                      </td>
-                      <td className="py-3 pr-2">
-                        <span className="text-gray-700 bg-blue-50/70 border border-blue-100 rounded-lg px-2.5 py-1 inline-block">
-                          {officer.recommendedAction}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {filteredOfficers.length === 0 && (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-gray-500">

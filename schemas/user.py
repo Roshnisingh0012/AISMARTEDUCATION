@@ -9,6 +9,7 @@ class UserBase(BaseModel):
     full_name: Optional[str] = None
     department: Optional[str] = None
     designation: Optional[str] = None
+    job_role: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
