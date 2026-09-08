@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from db.session import get_db
 from db.models import User, UserRole
-from services.analytics_engine import get_overview_metrics, get_department_breakdown, get_skill_demand, get_role_metrics, get_all_officers
+from api.deps import require_role
+from services.analytics_engine import get_overview_metrics, get_department_breakdown, get_skill_demand, get_role_metrics
 from services.predictive_engine import generate_predictive_trends
 from schemas.analytics import PredictiveTrendsResponse
 
@@ -15,8 +17,21 @@ async def overview(db: AsyncSession = Depends(get_db), user: User = Depends(admi
 
 @router.get("/officers")
 @router.get("/learners")
-async def officers(db: AsyncSession = Depends(get_db), user: User = Depends(admin_role)):
-    return await get_all_officers(db)
+async def get_all_learners(db: AsyncSession = Depends(get_db), user: User = Depends(admin_role)):
+    result = await db.execute(select(User).where(User.role != UserRole.ADMIN))
+    learners = result.scalars().all()
+    return [
+        {
+            "id": l.id,
+            "full_name": l.full_name,
+            "email": l.email,
+            "department": l.department or "MoSPI",
+            "job_role": getattr(l, 'designation', None) or getattr(l, 'role', 'Learner'),
+            "avg_score": 0.0,
+            "critical_gaps": 0
+        }
+        for l in learners
+    ]
 
 @router.get("/role-metrics")
 async def role_metrics(db: AsyncSession = Depends(get_db), user: User = Depends(admin_role)):
