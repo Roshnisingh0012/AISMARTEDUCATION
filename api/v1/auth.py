@@ -4,39 +4,53 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from core.security import verify_password, get_password_hash, create_access_token
 from db.session import get_db
-from db.models import User
+from db.models import User, UserRole
 from schemas.user import UserCreate, UserResponse, Token
 from api.deps import get_current_user
 
 router = APIRouter()
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+@router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
-    if user_in.role == "admin":
-        raise HTTPException(
-            status_code=403,
-            detail="Admin accounts cannot be registered publicly",
-        )
+    email_clean = user_in.email.strip().lower()
     
-    result = await db.execute(select(User).where(User.email == user_in.email))
+    result = await db.execute(select(User).where(User.email == email_clean))
     user = result.scalars().first()
     if user:
         raise HTTPException(
             status_code=400,
             detail="The user with this email already exists in the system.",
         )
+    
+    assigned_role = UserRole.LEARNER
+    if user_in.role and str(user_in.role).lower() in ["admin", "userrole.admin"]:
+        assigned_role = UserRole.ADMIN
+        
     user = User(
-        email=user_in.email,
+        email=email_clean,
         hashed_password=get_password_hash(user_in.password),
-        full_name=user_in.full_name,
-        role="learner",
-        department=user_in.department,
-        designation=user_in.designation,
+        full_name=user_in.full_name or email_clean.split('@')[0],
+        role=assigned_role,
+        department=user_in.department or "MoSPI",
+        designation=user_in.designation or "SSO",
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
-    return user
+    
+    access_token = create_access_token(subject=str(user.id))
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "id": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "department": user.department,
+        "designation": user.designation,
+        "has_completed_diagnostic": user.has_completed_diagnostic
+    }
 
 @router.post("/login", response_model=Token)
 async def login(

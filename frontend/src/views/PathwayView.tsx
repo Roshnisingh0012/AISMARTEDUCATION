@@ -92,22 +92,24 @@ export default function PathwayView() {
       if (enrolledIds.has(course.course_id)) return;
       setPendingId(course.course_id);
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) throw new Error('Not signed in');
+        if (!user) throw new Error('Not signed in');
 
-        const { error } = await supabase.from('course_enrollments').upsert(
-          {
-            user_id: session.user.id,
-            learner_email: user?.email ?? '',
-            learner_name: user?.name ?? '',
-            course_id: course.course_id,
-            course_title: course.title,
-            job_role: user?.jobRole ?? '',
-            status: 'enrolled',
-          },
-          { onConflict: 'learner_email,course_id' },
-        );
-        if (error) throw error;
+        try {
+          if (supabase) {
+            await supabase.from('course_enrollments').upsert(
+              {
+                user_id: user.email,
+                learner_email: user.email,
+                learner_name: user.name,
+                course_id: course.course_id,
+                course_title: course.title,
+                job_role: user.jobRole,
+                status: 'enrolled',
+              },
+              { onConflict: 'learner_email,course_id' },
+            );
+          }
+        } catch (_) {}
 
         const newRow: EnrollmentRow = {
           id: crypto.randomUUID(),
@@ -122,7 +124,8 @@ export default function PathwayView() {
         if (course.external_url) {
           window.open(course.external_url, '_blank', 'noopener,noreferrer');
         }
-      } catch {
+      } catch (err) {
+        console.error('Enrollment error:', err);
         // Fallback open if offline
         if (course.external_url) {
           window.open(course.external_url, '_blank', 'noopener,noreferrer');

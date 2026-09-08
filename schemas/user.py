@@ -12,7 +12,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
-    role: Optional[UserRole] = UserRole.LEARNER
+    role: Optional[str] = "LEARNER"
 
 class UserResponse(UserBase):
     id: UUID

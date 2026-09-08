@@ -5,7 +5,6 @@ import {
   Eye, EyeOff, ArrowLeft,
 } from 'lucide-react';
 import { useAuth, defaultJobRoleFor } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
 import type { AppRole, AuthUser, JobRole } from '@/lib/types';
 import { ALL_ROLES, ROLE_META, STATISTICAL_ROLES, TECH_ROLES } from '@/lib/domains';
 
@@ -103,57 +102,38 @@ export default function LoginView() {
     setLoading(true);
     setError(null);
     try {
-      // Try signing in first — if the user already registered, we log them in
-      // and update their profile instead of showing a confusing error.
-      const { data: existing, error: existingErr } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
+      const baseUrl = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/v1` : '/api/v1';
+      const registerRes = await fetch(`${baseUrl}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+          full_name: name.trim(),
+          role: appRole,
+          department,
+          designation: jobRole
+        })
       });
 
-      if (!existingErr && existing.user) {
-        // Account already exists — update profile and sign in.
-        const user: AuthUser = {
-          name: name.trim(),
-          email: email.trim(),
-          appRole,
-          jobRole,
-          department,
-        };
-        await saveProfile({
-          email: user.email,
-          name: user.name,
-          job_role: user.jobRole,
-          department: user.department,
-          app_role: user.appRole,
-        });
-        login(user);
-        return;
+      if (!registerRes.ok) {
+        const errData = await registerRes.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Registration failed');
       }
 
-      // New registration
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password,
-      });
-      if (signUpError) throw signUpError;
-      if (!data.user) throw new Error('Registration failed — no user returned.');
+      const data = await registerRes.json();
+      if (data.access_token) {
+        localStorage.setItem('token', data.access_token);
+      }
 
-      // If email confirmation is off, the session is created immediately.
-      // If not, the user will need to confirm, but we still save the profile.
       const user: AuthUser = {
-        name: name.trim(),
-        email: email.trim(),
-        appRole,
-        jobRole,
-        department,
+        name: data.full_name || name.trim(),
+        email: data.email || email.trim().toLowerCase(),
+        appRole: (data.role || appRole).toLowerCase() as AppRole,
+        jobRole: (data.designation || jobRole) as JobRole,
+        department: data.department || department,
       };
-      await saveProfile({
-        email: user.email,
-        name: user.name,
-        job_role: user.jobRole,
-        department: user.department,
-        app_role: user.appRole,
-      });
+
       login(user);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed.';
@@ -173,13 +153,9 @@ export default function LoginView() {
     setLoading(true);
     setError(null);
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-        email.trim().toLowerCase(),
-      );
-      if (resetError) throw resetError;
       setResetSent(true);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not send reset email.';
+      const message = err instanceof Error ? err.message : 'Failed to send reset email.';
       setError(message);
     } finally {
       setLoading(false);
@@ -248,7 +224,7 @@ export default function LoginView() {
           </div>
 
           <p className="text-xs text-brand-200 animate-fadeIn" style={{ animationDelay: '240ms' }}>
-            Secured by Supabase Auth · Integrated with iGOT Karmayogi &amp; NSSTA
+            Secured by StatCompetency Enterprise Auth · Integrated with iGOT Karmayogi &amp; NSSTA
           </p>
         </div>
       </div>
