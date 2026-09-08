@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "AI Skill Intelligence & Assessment Platform"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days session validity
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     
     POSTGRES_SERVER: str
     POSTGRES_USER: str
