@@ -1,15 +1,15 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { DocUploadModal } from '@/components/DocUploadModal';
 import { QuizReviewEditor } from '@/components/QuizReviewEditor';
 import { SkillAssessment } from '@/components/SkillAssessment';
 import { fetchAvailableAssessments, fetchQuizQuestions } from '@/api/learner';
 import { QuizAvailable, QuizQuestionPublic } from '@/types';
-import { PlusCircle, PlayCircle, BookOpen, Clock, Award } from 'lucide-react';
+import { PlusCircle, PlayCircle, BookOpen, Clock, Award, Tag, Sparkles, HelpCircle, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 export default function QuizView() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { t, i18n } = useTranslation();
   const isHi = i18n?.language?.startsWith('hi') ?? false;
   
@@ -45,6 +45,17 @@ export default function QuizView() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAssessmentComplete = () => {
+    if (updateUser) {
+      updateUser({ has_completed_diagnostic: true });
+    }
+  };
+
+  const handleNavigatePathway = () => {
+    setActiveQuizId(null);
+    window.dispatchEvent(new CustomEvent('change-app-tab', { detail: 'pathway' }));
   };
 
   if (user?.appRole === 'admin') {
@@ -89,25 +100,36 @@ export default function QuizView() {
     );
   }
 
-  // Learner View
+  // Learner View - Active Assessment
   if (activeQuizId && questions.length > 0) {
     return (
       <SkillAssessment 
         quizId={activeQuizId} 
         questions={questions} 
-        onClose={() => setActiveQuizId(null)} 
+        onClose={() => setActiveQuizId(null)}
+        onComplete={handleAssessmentComplete}
+        onNavigatePathway={handleNavigatePathway}
       />
     );
   }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
-          <BookOpen size={26} className="text-blue-600" />
-          <span>{t('quizzes.title')}</span>
-        </h2>
-        <p className="text-gray-500 mt-1 text-sm">{t('quizzes.subtitle')}</p>
+      {/* Header Banner */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
+            <BookOpen size={26} className="text-blue-600" />
+            <span>{t('quizzes.title')}</span>
+          </h2>
+          <p className="text-gray-500 mt-1 text-sm">{t('quizzes.subtitle')}</p>
+        </div>
+        {user?.jobRole && (
+          <div className="px-3.5 py-1.5 rounded-xl bg-blue-50 border border-blue-100 text-blue-800 text-xs font-bold flex items-center gap-1.5 shadow-sm">
+            <Tag size={14} className="text-blue-600" />
+            <span>{user.jobRole}</span>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -121,29 +143,78 @@ export default function QuizView() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {assessments.map(q => (
-            <div key={q.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700">
-                    {q.difficulty || 'Intermediate'}
-                  </span>
-                  <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
-                    <Award size={14} className="text-amber-500" /> {q.passing_score}% {t('quizzes.passingScore')}
-                  </span>
-                </div>
-                <h3 className="text-base font-bold text-gray-900 mb-2 leading-snug">{q.title}</h3>
-                <p className="text-xs text-gray-500 mb-4 line-clamp-2">{q.description || 'Evaluate role competencies and identify learning needs.'}</p>
-              </div>
-              <button 
-                onClick={() => handleStartQuiz(q.id)}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-bold flex justify-center items-center space-x-2 transition shadow-sm"
+          {assessments.map(q => {
+            const isDiag = q.is_diagnostic;
+            const diff = q.difficulty || 'Intermediate';
+            const diffColor = diff === 'Easy' 
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+              : diff === 'Advanced' 
+              ? 'bg-purple-50 text-purple-700 border-purple-200' 
+              : 'bg-blue-50 text-blue-700 border-blue-200';
+
+            return (
+              <div 
+                key={q.id} 
+                className={`bg-white rounded-2xl p-6 shadow-sm border transition-all duration-300 flex flex-col justify-between group hover:-translate-y-1 hover:shadow-lg ${
+                  isDiag ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-100 hover:border-blue-200'
+                }`}
               >
-                <PlayCircle size={18} />
-                <span>{t('quizzes.startAssessment')}</span>
-              </button>
-            </div>
-          ))}
+                <div>
+                  {/* Top Badges Row */}
+                  <div className="flex items-center justify-between gap-2 mb-3.5 flex-wrap">
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${diffColor}`}>
+                      {diff}
+                    </span>
+                    {isDiag && (
+                      <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-900 flex items-center gap-1">
+                        <Sparkles size={12} className="text-amber-600" />
+                        {isHi ? 'अनिवार्य आधारभूत' : 'Baseline Diagnostic'}
+                      </span>
+                    )}
+                    <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
+                      <Award size={14} className="text-amber-500" /> {q.passing_score ?? 70}% {t('quizzes.passingScore')}
+                    </span>
+                  </div>
+
+                  {/* Title & Description */}
+                  <h3 className="text-base font-bold text-gray-900 mb-2 leading-snug group-hover:text-blue-600 transition">
+                    {q.title}
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-5 line-clamp-2 leading-relaxed">
+                    {q.description || 'Targeted role assessment measuring analytical competence and statistical protocols.'}
+                  </p>
+
+                  {/* Metadata Chips */}
+                  <div className="flex items-center gap-3 py-3 border-t border-gray-50 text-xs text-gray-500 font-medium mb-4">
+                    <span className="flex items-center gap-1">
+                      <HelpCircle size={14} className="text-gray-400" />
+                      {q.questions_count ?? 5} {isHi ? 'प्रश्न' : 'Questions'}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Clock size={14} className="text-gray-400" />
+                      {q.duration_mins ?? 10} {isHi ? 'मिनट' : 'Mins'}
+                    </span>
+                    <span className="flex items-center gap-1 text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded text-[11px] font-semibold truncate max-w-[120px]">
+                      {q.target_role || 'All Roles'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Launch Button */}
+                <button 
+                  onClick={() => handleStartQuiz(q.id)}
+                  className={`w-full py-2.5 rounded-xl font-bold flex justify-center items-center space-x-2 transition shadow-sm ${
+                    isDiag 
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white' 
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  <PlayCircle size={18} />
+                  <span>{isDiag ? (isHi ? 'आधारभूत मूल्यांकन प्रारंभ करें' : 'Start Baseline Diagnostic') : t('quizzes.startAssessment')}</span>
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

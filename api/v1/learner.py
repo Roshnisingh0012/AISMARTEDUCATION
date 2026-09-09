@@ -70,7 +70,65 @@ async def get_available_quizzes(
             result = await db.execute(select(Quiz).where(Quiz.is_published == True))
             quizzes = result.scalars().all()
 
-    return quizzes
+    out = []
+    for q in quizzes:
+        q_count_res = await db.execute(select(QuizQuestion).where(QuizQuestion.quiz_id == q.id))
+        q_list = q_count_res.scalars().all()
+        diff = q_list[0].difficulty if q_list else "Intermediate"
+        out.append(QuizAvailable(
+            id=q.id,
+            title=q.title,
+            competency_id=q.competency_id,
+            is_published=q.is_published,
+            passing_score=q.passing_score,
+            target_role=q.target_role or "All Roles",
+            difficulty=diff,
+            duration_mins=max(5, len(q_list) * 2),
+            questions_count=len(q_list) if q_list else 5,
+            is_diagnostic=q.is_diagnostic
+        ))
+    return out
+
+
+@router.get("/baseline-diagnostic", response_model=QuizAvailable)
+async def get_baseline_diagnostic(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(learner_role)
+):
+    """Retrieve the primary baseline diagnostic assessment tailored to the user's role."""
+    user_desig = (user.designation or "").strip()
+    norm_role = normalize_role(user_desig)
+    allowed_roles = [user_desig, norm_role, "All Roles"]
+
+    result = await db.execute(
+        select(Quiz).where(
+            Quiz.is_published == True,
+            or_(Quiz.is_diagnostic == True, Quiz.target_role.in_(allowed_roles))
+        )
+    )
+    quiz = result.scalars().first()
+    if not quiz:
+        res_any = await db.execute(select(Quiz).where(Quiz.is_published == True))
+        quiz = res_any.scalars().first()
+
+    if not quiz:
+        raise HTTPException(status_code=404, detail="No diagnostic assessment found.")
+
+    q_count_res = await db.execute(select(QuizQuestion).where(QuizQuestion.quiz_id == quiz.id))
+    q_list = q_count_res.scalars().all()
+
+    return QuizAvailable(
+        id=quiz.id,
+        title=quiz.title,
+        competency_id=quiz.competency_id,
+        is_published=quiz.is_published,
+        passing_score=quiz.passing_score,
+        target_role=quiz.target_role or user_desig or "All Roles",
+        difficulty="Diagnostic",
+        duration_mins=max(5, len(q_list) * 2),
+        questions_count=len(q_list) if q_list else 5,
+        is_diagnostic=True
+    )
 
 
 @router.get("/assessments/{quiz_id}", response_model=List[QuizQuestionPublic])
@@ -121,11 +179,16 @@ async def submit_quiz(
 
         results.append(QuestionResult(
             question_id=ans.question_id,
+            question_text=q.question_text,
+            question_text_hi=q.question_text_hi,
+            options=q.options if isinstance(q.options, list) else [],
+            options_hi=q.options_hi if isinstance(q.options_hi, list) else None,
             selected_option_index=ans.selected_option_index,
             correct_option_index=q.correct_option_index,
             is_correct=is_correct,
-            explanation=q.explanation,
-            explanation_hi=q.explanation_hi
+            explanation=q.explanation or "Official guidelines and methodology define this answer.",
+            explanation_hi=q.explanation_hi,
+            competency_tag=quiz.title or (user.designation or "Statistical Competency")
         ))
 
     score_percentage = (correct_count / total_count) * 100.0
@@ -137,6 +200,7 @@ async def submit_quiz(
     )
     db.add(attempt)
 
+    # Update competencies
     if quiz.competency_id:
         uc_res = await db.execute(
             select(UserCompetency)
@@ -154,13 +218,37 @@ async def submit_quiz(
                 current_score=score_percentage,
                 last_evaluated_at=datetime.now(timezone.utc)
             ))
+    else:
+        # If diagnostic or general quiz, evaluate all role-related competencies
+        comp_ids = await _get_role_filtered_competency_ids(user, db)
+        for cid in comp_ids[:4]:
+            uc_res = await db.execute(
+                select(UserCompetency)
+                .where(UserCompetency.user_id == user.id)
+                .where(UserCompetency.competency_id == cid)
+            )
+            uc = uc_res.scalars().first()
+            if uc:
+                uc.current_score = (uc.current_score * 0.3) + (score_percentage * 0.7)
+                uc.last_evaluated_at = datetime.now(timezone.utc)
+            else:
+                db.add(UserCompetency(
+                    user_id=user.id,
+                    competency_id=cid,
+                    current_score=score_percentage,
+                    last_evaluated_at=datetime.now(timezone.utc)
+                ))
 
-    if quiz.is_diagnostic:
-        user.has_completed_diagnostic = True
+    # Always mark diagnostic as completed once an assessment is submitted
+    user.has_completed_diagnostic = True
 
     await db.commit()
 
-    return QuizResultResponse(score_percentage=score_percentage, results=results)
+    return QuizResultResponse(
+        score_percentage=score_percentage,
+        results=results,
+        is_diagnostic=quiz.is_diagnostic or False
+    )
 
 
 @router.get("/skill-gaps", response_model=List[SkillGap])
@@ -259,7 +347,8 @@ async def get_dashboard_summary(
             high_priority_gaps_count=0,
             completed_assessments_count=0,
             recent_recommendations=recs[:5],
-            skill_gaps=[]
+            skill_gaps=[],
+            has_completed_diagnostic=user.has_completed_diagnostic or False
         )
 
     comps_res = await db.execute(select(Competency))
@@ -281,31 +370,6 @@ async def get_dashboard_summary(
         high_priority_gaps_count=high_priority_gaps,
         completed_assessments_count=completed_count,
         recent_recommendations=recs[:5],
-        skill_gaps=gaps
+        skill_gaps=gaps,
+        has_completed_diagnostic=user.has_completed_diagnostic or False
     )
-
-
-@router.post("/courses/{course_id}/enroll")
-async def enroll_course(
-    course_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(learner_role)
-):
-    course_res = await db.execute(select(MockCourse).where(MockCourse.id == course_id))
-    course = course_res.scalars().first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-
-    enr_res = await db.execute(
-        select(CourseEnrollment)
-        .where(CourseEnrollment.user_id == user.id)
-        .where(CourseEnrollment.course_id == course.id)
-    )
-    existing = enr_res.scalars().first()
-
-    if existing:
-        return {"status": "success", "message": "Already enrolled.", "external_url": course.external_url}
-
-    db.add(CourseEnrollment(user_id=user.id, course_id=course.id, status="IN_PROGRESS"))
-    await db.commit()
-    return {"status": "success", "message": "Successfully enrolled!", "external_url": course.external_url}

@@ -26,9 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = localStorage.getItem('token');
       if (token) {
         try {
-          // Timeout controller
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 2500);
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
           
           const baseUrl = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/v1` : '/api/v1';
           const res = await fetch(`${baseUrl}/auth/me`, {
@@ -44,14 +43,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               email: data.email,
               appRole: data.role.toLowerCase() as AppRole,
               jobRole: data.designation as JobRole || 'SSO',
-              department: data.department || 'MoSPI'
+              department: data.department || 'MoSPI',
+              has_completed_diagnostic: Boolean(data.has_completed_diagnostic)
             });
           } else {
             localStorage.removeItem('token');
           }
         } catch (e) {
           console.error('Auth fetch failed or timed out:', e);
-          localStorage.removeItem('token');
         }
       }
       setLoading(false);
@@ -73,7 +72,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const saveProfile = useCallback(async (profile: any) => {
-    // Mock save profile
     console.log('Saved profile', profile);
   }, []);
 

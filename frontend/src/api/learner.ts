@@ -38,6 +38,11 @@ export const fetchAvailableAssessments = async (): Promise<QuizAvailable[]> => {
   return response.data;
 };
 
+export const fetchBaselineDiagnostic = async (): Promise<QuizAvailable> => {
+  const response = await axios.get(`${API_BASE_URL}/baseline-diagnostic`, getAuthHeaders());
+  return response.data;
+};
+
 export const fetchQuizQuestions = async (quizId: string): Promise<QuizQuestionPublic[]> => {
   const response = await axios.get(`${API_BASE_URL}/assessments/${quizId}`, getAuthHeaders());
   return response.data;
@@ -57,7 +62,6 @@ export const enrollCourse = async (courseId: string | number) => {
   return response.data;
 };
 
-
 export const fetchNotifications = async () => {
   const res = await axios.get('/api/v1/notifications', getAuthHeaders());
   return res.data;
@@ -72,4 +76,3 @@ export const markAllNotificationsRead = async () => {
   const res = await axios.post('/api/v1/notifications/mark-all-read', {}, getAuthHeaders());
   return res.data;
 };
-

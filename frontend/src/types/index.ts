@@ -16,6 +16,7 @@ export interface DashboardSummary {
   completed_assessments_count: number;
   recent_recommendations: CourseRecommendation[];
   skill_gaps: SkillGap[];
+  has_completed_diagnostic?: boolean;
 }
 
 export interface SkillGap {
@@ -43,6 +44,10 @@ export interface QuizAvailable {
   difficulty?: string;
   passing_score?: number;
   competency_id?: string;
+  target_role?: string;
+  duration_mins?: number;
+  questions_count?: number;
+  is_diagnostic?: boolean;
 }
 
 export interface AnswerSubmission {
@@ -52,16 +57,22 @@ export interface AnswerSubmission {
 
 export interface QuestionResult {
   question_id: string;
+  question_text?: string;
+  question_text_hi?: string;
+  options?: string[];
+  options_hi?: string[];
   selected_option_index: number;
   correct_option_index: number;
   is_correct: boolean;
   explanation?: string;
   explanation_hi?: string;
+  competency_tag?: string;
 }
 
 export interface QuizResultResponse {
   score_percentage: number;
   results: QuestionResult[];
+  is_diagnostic?: boolean;
 }
 
 export interface ForecastPoint {
@@ -92,4 +103,3 @@ export interface AppNotification {
   is_read: boolean;
   created_at: string;
 }
-

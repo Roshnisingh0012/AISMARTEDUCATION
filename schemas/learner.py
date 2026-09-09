@@ -15,9 +15,14 @@ class QuizQuestionPublic(BaseModel):
 class QuizAvailable(BaseModel):
     id: UUID
     title: str
-    competency_id: Optional[UUID]
+    competency_id: Optional[UUID] = None
     is_published: bool = True
     passing_score: float = 70.0
+    target_role: Optional[str] = "All Roles"
+    difficulty: Optional[str] = "Intermediate"
+    duration_mins: Optional[int] = 10
+    questions_count: Optional[int] = 5
+    is_diagnostic: Optional[bool] = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -30,15 +35,21 @@ class QuizSubmission(BaseModel):
 
 class QuestionResult(BaseModel):
     question_id: UUID
+    question_text: Optional[str] = None
+    question_text_hi: Optional[str] = None
+    options: Optional[List[str]] = None
+    options_hi: Optional[List[str]] = None
     selected_option_index: int
     correct_option_index: int
     is_correct: bool
-    explanation: Optional[str]
+    explanation: Optional[str] = None
     explanation_hi: Optional[str] = None
+    competency_tag: Optional[str] = None
 
 class QuizResultResponse(BaseModel):
     score_percentage: float
     results: List[QuestionResult]
+    is_diagnostic: Optional[bool] = False
 
 class SkillGap(BaseModel):
     competency_id: UUID
@@ -55,8 +66,8 @@ class CourseRecommendation(BaseModel):
     provider: str
     skill_name: str
     level: str
-    duration: Optional[str]
-    external_url: Optional[str]
+    duration: Optional[str] = None
+    external_url: Optional[str] = None
     reason: str
 
 class DashboardSummary(BaseModel):
@@ -66,7 +77,7 @@ class DashboardSummary(BaseModel):
     completed_assessments_count: int
     recent_recommendations: List[CourseRecommendation]
     skill_gaps: List[SkillGap] = []
+    has_completed_diagnostic: Optional[bool] = False
 
 class RecommendationResponse(BaseModel):
     courses: List[CourseRecommendation]
-
